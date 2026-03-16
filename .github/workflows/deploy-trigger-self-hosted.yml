@@ -36,5 +36,5 @@ jobs:
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
           IIIF_KEY: "dummy"
         run: |
-          npx -y trigger.dev@4.4.3 login -a "$TRIGGER_SERVER_URL" --profile self-hosted
-          npx -y trigger.dev@4.4.3 deploy --env staging --profile self-hosted -c ./trigger.config.ts   
+          npx -y trigger.dev@4.3.3 login -a "$TRIGGER_SERVER_URL" --profile self-hosted
+          npx -y trigger.dev@4.3.3 deploy --env staging --profile self-hosted -c ./trigger.config.ts   
