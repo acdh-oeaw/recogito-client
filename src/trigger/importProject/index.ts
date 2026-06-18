@@ -394,3 +394,4 @@ run: async (payload: Payload) => {
 
   logger.info(`Completed import: ${importId}`);
 }
+});
