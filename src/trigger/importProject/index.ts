@@ -312,20 +312,13 @@ export const importProject = task({
 
     logger.info('Creating Supabase client');
 
-
-    const { IIIF_KEY, SUPABASE_SERVICE_KEY } = await getSecrets(vaultTenantPath);
-    
-    if (!SUPABASE_SERVICE_KEY) {
-      throw new Error("SUPABASE_SERVICE_KEY missing");
-    }
-    
-    const supabase = createClient(publicSupabaseUrl, SUPABASE_SERVICE_KEY);
-
-    
-    const supabase = createClient(
-      publicSupabaseUrl,
-      SUPABASE_SERVICE_KEY
-    );
+    const supabase = createClient(publicSupabaseUrl, publicSupabaseApiKey, {
+      global: {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        }
+      }
+    });
 
     const url = await getDownloadURL(supabase, jobId, 'jobs');
 
@@ -338,6 +331,8 @@ export const importProject = task({
 
     // Update foreign keys
     await transform(supabase, importId);
+
+    const { IIIF_KEY, SUPABASE_SERVICE_KEY } = await getSecrets(vaultTenantPath);
 
     // Create users in auth schema
     await createUsers(supabase, importId, publicSupabaseUrl, SUPABASE_SERVICE_KEY);
