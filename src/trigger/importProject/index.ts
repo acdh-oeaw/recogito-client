@@ -312,13 +312,16 @@ export const importProject = task({
 
     logger.info('Creating Supabase client');
 
-    const supabase = createClient(publicSupabaseUrl, publicSupabaseApiKey, {
-      global: {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        }
-      }
-    });
+    const { SUPABASE_SERVICE_KEY } = await getSecrets(vaultTenantPath);
+    
+    if (!SUPABASE_SERVICE_KEY) {
+      throw new Error("SUPABASE_SERVICE_KEY missing in runner");
+    }
+    
+    const supabase = createClient(
+      publicSupabaseUrl,
+      SUPABASE_SERVICE_KEY
+    );
 
     const url = await getDownloadURL(supabase, jobId, 'jobs');
 
