@@ -339,8 +339,6 @@ export const importProject = task({
     // Update foreign keys
     await transform(supabase, importId);
 
-    const { IIIF_KEY, SUPABASE_SERVICE_KEY } = await getSecrets(vaultTenantPath);
-
     // Create users in auth schema
     await createUsers(supabase, importId, publicSupabaseUrl, SUPABASE_SERVICE_KEY);
 
