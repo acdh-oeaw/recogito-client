@@ -21,11 +21,14 @@ const TASK_IMPORT = 'import-project';
 export const runJob = task({
   id: 'run-job',
   run: async (payload: Payload) => {
-
-    logger.info("RUN-JOB START");
-    logger.info(JSON.stringify(payload, null, 2));
-
     const { publicSupabaseUrl, publicSupabaseApiKey } = payload;
+
+    if (!(publicSupabaseUrl && publicSupabaseApiKey)) {
+      logger.error('Invalid Supabase credentials');
+      return;
+    }
+
+    const { jobId, token, ...rest } = payload;
 
     const supabase = createClient(publicSupabaseUrl, publicSupabaseApiKey, {
       global: {
@@ -62,19 +65,6 @@ export const runJob = task({
     // Update the job status
     await updateJob(supabase, { id: jobId, job_status: 'PROCESSING' });
 
-    logger.info("CHILD TASK PAYLOAD");
-    logger.info(
-      JSON.stringify(
-        {
-          token,
-          jobId,
-          ...rest,
-        },
-        null,
-        2
-      )
-    );
-    
     // Run the job
     const result = await tasks.triggerAndWait<
       typeof exportProject | typeof importProject
