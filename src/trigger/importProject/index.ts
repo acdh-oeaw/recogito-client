@@ -291,107 +291,59 @@ const uploadImage = async (
 
 export const importProject = task({
   id: 'import-project',
-run: async (payload: Payload) => {
-
-  logger.info('================ IMPORT START ================');
-  logger.info('Payload received');
-  logger.info(JSON.stringify(payload, null, 2));
-
-  const {
-    jobId,
-    token,
-    publicSupabaseUrl,
-    publicSupabaseApiKey,
-    iiifProjectId,
-    iiifUrl,
-    vaultTenantPath,
-  } = payload;
-
-  logger.info(`jobId=${jobId}`);
-  logger.info(`token present=${!!token}`);
-  logger.info(`publicSupabaseUrl=${publicSupabaseUrl}`);
-  logger.info(`publicSupabaseApiKey present=${!!publicSupabaseApiKey}`);
-  logger.info(`iiifProjectId=${iiifProjectId}`);
-  logger.info(`iiifUrl=${iiifUrl}`);
-  logger.info(`vaultTenantPath=${vaultTenantPath}`);
-
-  if (!(publicSupabaseUrl && publicSupabaseApiKey)) {
-    logger.error('Invalid Supabase credentials');
-    logger.error(JSON.stringify({
+  run: async (payload: Payload) => {
+    const {
+      jobId,
+      token,
       publicSupabaseUrl,
-      publicSupabaseApiKeyPresent: !!publicSupabaseApiKey,
-    }));
-    return;
-  }
+      publicSupabaseApiKey,
+      iiifProjectId,
+      iiifUrl,
+      vaultTenantPath,
+    } = payload;
 
-  const importId = uuidv4();
-  logger.info(`Generating import ID: ${importId}`);
-
-  logger.info('Creating Supabase client');
-
-  const supabase = createClient(publicSupabaseUrl, publicSupabaseApiKey, {
-    global: {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      }
+    if (!(publicSupabaseUrl && publicSupabaseApiKey)) {
+      logger.error('Invalid Supabase credentials');
+      return;
     }
-  });
 
-  logger.info('Supabase client created');
+    const importId = uuidv4();
+    logger.info(`Generating import ID: ${importId}`);
 
-  logger.info('Downloading ZIP URL');
-  const url = await getDownloadURL(supabase, jobId, 'jobs');
-  logger.info(`ZIP URL obtained: ${url}`);
+    logger.info('Creating Supabase client');
 
-  logger.info('Downloading ZIP file');
-  const fileResp = await fetch(url);
-  logger.info(`ZIP response status=${fileResp.status}`);
+    const supabase = createClient(publicSupabaseUrl, publicSupabaseApiKey, {
+      global: {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        }
+      }
+    });
 
-  const buffer = await fileResp.arrayBuffer();
-  logger.info(`ZIP size=${buffer.byteLength}`);
+    const url = await getDownloadURL(supabase, jobId, 'jobs');
 
-  const zip = new AdmZip(Buffer.from(buffer));
+    const fileResp = await fetch(url);
+    const buffer = await fileResp.arrayBuffer();
+    const zip = new AdmZip(Buffer.from(buffer));
 
-  logger.info('Extract phase starting');
+    // Extract the data to temporary tables
+    await extract(supabase, importId, zip);
 
-  await extract(supabase, importId, zip);
+    // Update foreign keys
+    await transform(supabase, importId);
 
-  logger.info('Extract phase completed');
+    const { IIIF_KEY, SUPABASE_SERVICE_KEY } = await getSecrets(vaultTenantPath);
 
-  await transform(supabase, importId);
+    // Create users in auth schema
+    await createUsers(supabase, importId, publicSupabaseUrl, SUPABASE_SERVICE_KEY);
 
-  logger.info('Transform phase completed');
+    // Load the data into the database tables
+    await load(supabase, importId);
 
-  const { IIIF_KEY, SUPABASE_SERVICE_KEY } = await getSecrets(vaultTenantPath);
+    // Create documents in storage
+    await createDocuments(supabase, importId, zip, iiifProjectId, iiifUrl, IIIF_KEY);
 
-  logger.info('Secrets loaded');
-  logger.info(`IIIF_KEY present=${!!IIIF_KEY}`);
-  logger.info(`SUPABASE_SERVICE_KEY present=${!!SUPABASE_SERVICE_KEY}`);
 
-  await createUsers(
-    supabase,
-    importId,
-    publicSupabaseUrl,
-    SUPABASE_SERVICE_KEY
-  );
-
-  logger.info('Users phase completed');
-
-  await load(supabase, importId);
-
-  logger.info('Load phase completed');
-
-  await createDocuments(
-    supabase,
-    importId,
-    zip,
-    iiifProjectId,
-    iiifUrl,
-    IIIF_KEY
-  );
-
-  logger.info('Documents phase completed');
-
-  logger.info(`Completed import: ${importId}`);
-}
+    logger.info(`Completed import: ${importId}`);
+  }
 });
